@@ -4,8 +4,8 @@ import MagicWand from 'magic-wand-tool'
 function App() {
   let colorThreshold = 15
   let blurRadius = 5
-  // let simplifyTolerant = 0
-  // let simplifyCount = 30
+  let simplifyTolerant = 0
+  let simplifyCount = 30
   let hatchLength = 4
   let hatchOffset = 0
 
@@ -35,33 +35,39 @@ function App() {
     var cvs = document.getElementById('resultCanvas')
     cvs.width = img.width
     cvs.height = img.height
+    var tempCanvas = document.getElementById('tempCanvas')
+    tempCanvas.width = img.width
+    tempCanvas.height = img.height
     imageInfo = {
       width: img.width,
       height: img.height,
       context: cvs.getContext('2d'),
+      tempContext: tempCanvas.getContext('2d'),
     }
     mask = null
-
-    var tempCtx = document.createElement('canvas').getContext('2d')
-    tempCtx.canvas.width = imageInfo.width
-    tempCtx.canvas.height = imageInfo.height
-    tempCtx.drawImage(img, 0, 0)
-    imageInfo.data = tempCtx.getImageData(
-      0,
-      0,
-      imageInfo.width,
-      imageInfo.height
-    )
+    cvs.getContext('2d').drawImage(img, 0, 0)
+    imageInfo.data = cvs
+      .getContext('2d')
+      .getImageData(0, 0, imageInfo.width, imageInfo.height)
   }
   function imgChange(inp) {
     if (inp.target.files && inp.target.files[0]) {
       var reader = new FileReader()
       reader.onload = function (e) {
-        var img = document.getElementById('test-picture')
-        img.setAttribute('src', e.target.result)
-        img.onload = function () {
-          initCanvas(img)
+        // var img = document.getElementById('test-picture')
+        // img.setAttribute('src', e.target.result)
+        var image = document.createElement('img')
+        image.alt = 'test'
+        image.src = e.target.result
+        // image.width=e.target
+        // initCanvas(image)
+        image.onload = function () {
+          initCanvas(image)
         }
+        // img.onload = function () {
+        //   console.log(img.width)
+        //   // initCanvas(img)
+        // }
       }
       reader.readAsDataURL(inp.target.files[0])
     }
@@ -79,7 +85,7 @@ function App() {
   }
 
   function onMouseDown(e) {
-    if (e.button === 0) {
+    if (e.target.id === 'tempCanvas') {
       allowDraw = true
       addMode = e.ctrlKey
       downPoint = getMousePosition(e)
@@ -179,7 +185,7 @@ function App() {
       k,
       w = imageInfo.width,
       h = imageInfo.height,
-      ctx = imageInfo.context,
+      ctx = imageInfo.tempContext,
       imgData = ctx.createImageData(w, h),
       res = imgData.data
 
@@ -203,47 +209,57 @@ function App() {
         res[k + 3] = 255
       }
     }
-
+    // var tempCanvas = document.createElement('canvas')
+    // var tempCtx = tempCanvas.getContext('2d')
+    // tempCanvas.width = imageInfo.width
+    // tempCanvas.height = imageInfo.height
+    // tempCtx.putImageData(imgData, 0, 0)
+    // var image = new Image()
+    // image.src = tempCanvas.toDataURL('image/png')
+    // ctx.drawImage(image, 0, 0)
     ctx.putImageData(imgData, 0, 0)
   }
 
-  // function trace() {
-  //   var cs = MagicWand.traceContours(mask)
-  //   cs = MagicWand.simplifyContours(cs, simplifyTolerant, simplifyCount)
+  function trace() {
+    var cs = MagicWand.traceContours(mask)
+    cs = MagicWand.simplifyContours(cs, simplifyTolerant, simplifyCount)
 
-  //   mask = null
+    mask = null
 
-  //   // draw contours
-  //   var ctx = imageInfo.context
-  //   ctx.clearRect(0, 0, imageInfo.width, imageInfo.height)
-  //   //inner
-  //   ctx.beginPath()
-  //   for (var i = 0; i < cs.length; i++) {
-  //     if (!cs[i].inner) continue
-  //     var ps = cs[i].points
-  //     ctx.moveTo(ps[0].x, ps[0].y)
-  //     for (var j = 1; j < ps.length; j++) {
-  //       ctx.lineTo(ps[j].x, ps[j].y)
-  //     }
-  //   }
-  //   ctx.strokeStyle = 'red'
-  //   ctx.stroke()
-  //   //outer
-  //   ctx.beginPath()
-  //   for (i = 0; i < cs.length; i++) {
-  //     if (cs[i].inner) continue
-  //     ps = cs[i].points
-  //     ctx.moveTo(ps[0].x, ps[0].y)
-  //     for (j = 1; j < ps.length; j++) {
-  //       ctx.lineTo(ps[j].x, ps[j].y)
-  //     }
-  //   }
-  //   ctx.strokeStyle = 'blue'
-  //   ctx.stroke()
-  // }
+    // draw contours
+    var ctx = imageInfo.context
+    ctx.clearRect(0, 0, imageInfo.width, imageInfo.height)
+    //inner
+    ctx.beginPath()
+    for (var i = 0; i < cs.length; i++) {
+      if (!cs[i].inner) continue
+      var ps = cs[i].points
+      ctx.moveTo(ps[0].x, ps[0].y)
+      for (var j = 1; j < ps.length; j++) {
+        ctx.lineTo(ps[j].x, ps[j].y)
+      }
+    }
+    ctx.strokeStyle = 'red'
+    ctx.stroke()
+    //outer
+    ctx.beginPath()
+    for (i = 0; i < cs.length; i++) {
+      if (cs[i].inner) continue
+      ps = cs[i].points
+      ctx.moveTo(ps[0].x, ps[0].y)
+      for (j = 1; j < ps.length; j++) {
+        ctx.lineTo(ps[j].x, ps[j].y)
+      }
+    }
+    ctx.strokeStyle = 'blue'
+    ctx.stroke()
+  }
 
   function paint(color, alpha) {
-    if (!mask) return
+    if (!mask) {
+      console.log('no mask')
+      return
+    }
 
     var rgba = hexToRgb(color, alpha)
 
@@ -256,6 +272,7 @@ function App() {
       h = imageInfo.height,
       ctx = imageInfo.context,
       imgData = ctx.createImageData(w, h),
+      tempContext = imageInfo.tempContext,
       res = imgData.data
 
     for (y = bounds.minY; y <= bounds.maxY; y++) {
@@ -271,7 +288,18 @@ function App() {
 
     mask = null
 
-    ctx.putImageData(imgData, 0, 0)
+    // ctx.putImageData(imgData, 0, 0)
+    var tempCanvas = document.createElement('canvas')
+    var tempCtx = tempCanvas.getContext('2d')
+    tempCanvas.width = imageInfo.width
+    tempCanvas.height = imageInfo.height
+    tempCtx.putImageData(imgData, 0, 0)
+    var image = new Image()
+    image.src = tempCanvas.toDataURL('image/png')
+    tempContext.clearRect(0, 0, w, h)
+    image.onload = function () {
+      tempContext.drawImage(image, 0, 0)
+    }
   }
 
   function hexToRgb(hex, alpha) {
@@ -340,18 +368,112 @@ function App() {
       bounds: b,
     }
   }
+  function reverse() {
+    var x,
+      y,
+      k,
+      w = imageInfo.width,
+      h = imageInfo.height,
+      data = mask.data,
+      b = {
+        // bounds for new mask
+        minX: 0,
+        minY: 0,
+        maxX: w,
+        maxY: h,
+      }
+    // walk through inner values except points on the boundary of the image
+    for (y = 0; y < h; y++)
+      for (x = 0; x < w; x++) {
+        k = y * w + x
+        if (data[k] === 0) data[k] = 1
+        else data[k] = 0
+      }
+    mask = {
+      // ...mask,
+      data: data,
+      width: w,
+      height: h,
+      bounds: b,
+    }
+    drawBorder()
+  }
+
+  function cutImage() {
+    if (!mask) {
+      console.log('no mask')
+      return
+    }
+
+    var rgba = hexToRgb('FF0000', 1)
+
+    var x,
+      y,
+      data = mask.data,
+      bounds = mask.bounds,
+      maskW = mask.width,
+      w = imageInfo.width,
+      h = imageInfo.height,
+      ctx = imageInfo.context,
+      imgData = ctx.createImageData(w, h),
+      tempContext = imageInfo.tempContext,
+      res = imgData.data
+
+    for (y = bounds.minY; y <= bounds.maxY; y++) {
+      for (x = bounds.minX; x <= bounds.maxX; x++) {
+        if (data[y * maskW + x] === 0) continue
+        var k = (y * w + x) * 4
+        res[k] = rgba[0]
+        res[k + 1] = rgba[1]
+        res[k + 2] = rgba[2]
+        res[k + 3] = rgba[3]
+      }
+    }
+
+    mask = null
+
+    // ctx.putImageData(imgData, 0, 0)
+    var tempCanvas = document.createElement('canvas')
+    var tempCtx = tempCanvas.getContext('2d')
+    tempCanvas.width = imageInfo.width
+    tempCanvas.height = imageInfo.height
+    tempCtx.putImageData(imgData, 0, 0)
+    var image = new Image()
+    image.src = tempCanvas.toDataURL('image/png')
+    tempContext.clearRect(0, 0, w, h)
+    image.onload = function () {
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.drawImage(image, 0, 0)
+      ctx.globalCompositeOperation = 'source-over'
+    }
+  }
+
+  // function expandContour() {
+
+  // }
 
   return (
-    <div>
+    <div style={{ backgroundColor: 'yellow' }}>
       <div style={{ overflow: 'auto' }}>
         <div className="button" onClick={() => uploadClick()}>
           Upload image and click on it
         </div>
-        {/* <div className="button" onClick="trace()">
+        <div className="button" onClick={() => trace()}>
           Create polygons by current selection
-        </div> */}
-        <div className="button" onClick={() => paint('FF0000', 0.35)}>
+        </div>
+        <div
+          className="button"
+          onClick={() => {
+            paint('FF0000', 0.35)
+          }}
+        >
           Paint the selection
+        </div>
+        <div className="button" onClick={() => reverse()}>
+          reverse the selection
+        </div>
+        <div className="button" onClick={() => cutImage()}>
+          delete the selection
         </div>
         <input
           id="file-upload"
@@ -374,10 +496,18 @@ function App() {
       <div>(hold the CTRL key to add selection)</div>
       <div className="wrapper">
         <div className="content">
-          <img id="test-picture" className="picture" alt="123" />
+          {/* <img id="test-picture" className="picture" alt="123" /> */}
           <canvas
             className="canvas"
             id="resultCanvas"
+            // onMouseUp={(e) => onMouseUp(e)}
+            // onMouseDown={(e) => onMouseDown(e)}
+            // onMouseMove={(e) => onMouseMove(e)}
+          ></canvas>
+          <canvas
+            className="canvas"
+            id="tempCanvas"
+            style={{ zIndex: '1' }}
             onMouseUp={(e) => onMouseUp(e)}
             onMouseDown={(e) => onMouseDown(e)}
             onMouseMove={(e) => onMouseMove(e)}
