@@ -1,7 +1,16 @@
 import './App.css'
 import React, { useEffect } from 'react'
 import MagicWand from 'magic-wand-tool'
+import openCV from 'react-opencvjs'
 function App() {
+  useEffect(() => {
+    openCV({
+      onLoaded: () => console.log('open cv loaded'),
+      onFailed: () => console.log('open cv failed to load'),
+      version: '4.5.1',
+    })
+  }, [])
+
   let colorThreshold = 15
   let blurRadius = 5
   let simplifyTolerant = 0
@@ -9,7 +18,12 @@ function App() {
   let hatchLength = 4
   let hatchOffset = 0
 
-  let imageInfo = {}
+  let imageInfo = {
+    width: null,
+    height: null,
+    context: null,
+    tempContext: null,
+  }
   let mask = null
   let oldMask = null
   let downPoint = null
@@ -41,13 +55,13 @@ function App() {
     imageInfo = {
       width: img.width,
       height: img.height,
-      context: cvs.getContext('2d'),
-      tempContext: tempCanvas.getContext('2d'),
+      context: cvs.getContext('2d', { willReadFrequently: true }),
+      tempContext: tempCanvas.getContext('2d', { willReadFrequently: true }),
     }
     mask = null
-    cvs.getContext('2d').drawImage(img, 0, 0)
+    cvs.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0)
     imageInfo.data = cvs
-      .getContext('2d')
+      .getContext('2d', { willReadFrequently: true })
       .getImageData(0, 0, imageInfo.width, imageInfo.height)
   }
   function imgChange(inp) {
@@ -210,7 +224,7 @@ function App() {
       }
     }
     // var tempCanvas = document.createElement('canvas')
-    // var tempCtx = tempCanvas.getContext('2d')
+    // var tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
     // tempCanvas.width = imageInfo.width
     // tempCanvas.height = imageInfo.height
     // tempCtx.putImageData(imgData, 0, 0)
@@ -290,7 +304,7 @@ function App() {
 
     // ctx.putImageData(imgData, 0, 0)
     var tempCanvas = document.createElement('canvas')
-    var tempCtx = tempCanvas.getContext('2d')
+    var tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
     tempCanvas.width = imageInfo.width
     tempCanvas.height = imageInfo.height
     tempCtx.putImageData(imgData, 0, 0)
@@ -434,7 +448,7 @@ function App() {
 
     // ctx.putImageData(imgData, 0, 0)
     var tempCanvas = document.createElement('canvas')
-    var tempCtx = tempCanvas.getContext('2d')
+    var tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
     tempCanvas.width = imageInfo.width
     tempCanvas.height = imageInfo.height
     tempCtx.putImageData(imgData, 0, 0)
@@ -448,9 +462,32 @@ function App() {
     }
   }
 
-  // function expandContour() {
-
-  // }
+  function expandContour() {
+    const { cv } = window
+    // call the marching ants algorithm
+    // to get the outline path of the image
+    // (outline=outside path of transparent pixels
+    if (cv) {
+      var ctx = document.getElementById('resultCanvas')
+      ctx.crossOrigin = 'anonymous'
+      var src = cv.imread(ctx)
+      let dst = new cv.Mat()
+      let M = new cv.Mat()
+      let ksize = new cv.Size(15, 15)
+      M = cv.getStructuringElement(cv.MORPH_ELLIPSE, ksize)
+      let anchor = new cv.Point(-1, -1)
+      cv.dilate(
+        src,
+        dst,
+        M,
+        anchor,
+        1,
+        cv.BORDER_CONSTANT,
+        cv.morphologyDefaultBorderValue()
+      )
+      cv.imshow('tempCanvas', dst)
+    }
+  }
 
   return (
     <div style={{ backgroundColor: 'yellow' }}>
@@ -474,6 +511,9 @@ function App() {
         </div>
         <div className="button" onClick={() => cutImage()}>
           delete the selection
+        </div>
+        <div className="button" onClick={() => expandContour()}>
+          expand Contour
         </div>
         <input
           id="file-upload"
