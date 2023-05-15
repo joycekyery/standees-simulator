@@ -104,6 +104,7 @@ function App() {
       addMode = e.ctrlKey
       downPoint = getMousePosition(e)
       drawMask(downPoint.x, downPoint.y)
+      // cvDrawMask(downPoint.x, downPoint.y)
     } else {
       allowDraw = false
       addMode = false
@@ -174,9 +175,9 @@ function App() {
 
     let old = oldMask ? oldMask.data : null
 
-    mask = MagicWand.floodFill(image, x, y, currentThreshold, old, true)
-    if (mask) mask = MagicWand.gaussBlurOnlyBorder(mask, blurRadius, old)
-
+    mask = MagicWand.floodFill(image, x, y, currentThreshold, old, false)
+    // if (mask) mask = MagicWand.gaussBlurOnlyBorder(mask, blurRadius, old)
+    console.log(mask)
     if (addMode && oldMask) {
       mask = mask ? concatMasks(mask, oldMask) : oldMask
     }
@@ -204,7 +205,6 @@ function App() {
       res = imgData.data
 
     if (!noBorder) cacheInd = MagicWand.getBorderIndices(mask)
-
     ctx.clearRect(0, 0, w, h)
 
     var len = cacheInd.length
@@ -241,7 +241,7 @@ function App() {
     mask = null
 
     // draw contours
-    var ctx = imageInfo.context
+    var ctx = imageInfo.tempContext
     ctx.clearRect(0, 0, imageInfo.width, imageInfo.height)
     //inner
     ctx.beginPath()
@@ -254,6 +254,10 @@ function App() {
       }
     }
     ctx.strokeStyle = 'red'
+    ctx.shadowColor = 'black'
+    ctx.shadowBlur = 6
+    ctx.shadowOffsetX = 2
+    ctx.shadowOffsetY = 2
     ctx.stroke()
     //outer
     ctx.beginPath()
@@ -266,6 +270,7 @@ function App() {
       }
     }
     ctx.strokeStyle = 'blue'
+    mask = null
     ctx.stroke()
   }
 
@@ -463,6 +468,18 @@ function App() {
   }
 
   function expandContour() {
+    var x,
+      y,
+      k,
+      w = imageInfo.width,
+      h = imageInfo.height,
+      b = {
+        // bounds for new mask
+        minX: 0,
+        minY: 0,
+        maxX: w - 1,
+        maxY: h - 1,
+      }
     const { cv } = window
     // call the marching ants algorithm
     // to get the outline path of the image
@@ -485,7 +502,26 @@ function App() {
         cv.BORDER_CONSTANT,
         cv.morphologyDefaultBorderValue()
       )
-      cv.imshow('tempCanvas', dst)
+      // walk through inner values except points on the boundary of the image
+      // cv.imshow('resultCanvas', dst)
+      var data = dst.data32F
+      for (y = 0; y < h; y++) {
+        for (x = 0; x < w; x++) {
+          k = y * w + x
+          if (data[k] !== 0) {
+            data[k] = 1
+          } else data[k] = 0
+        }
+      }
+      mask = null
+      mask = {
+        // ...mask,
+        data: data,
+        width: w,
+        height: h,
+        bounds: b,
+      }
+      drawBorder()
     }
   }
 
