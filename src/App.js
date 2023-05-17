@@ -170,7 +170,6 @@ function App() {
     if (!imageInfo) return
 
     showThreshold()
-
     var image = {
       data: imageInfo.data.data,
       width: imageInfo.width,
@@ -185,7 +184,6 @@ function App() {
 
     mask = MagicWand.floodFill(image, x, y, currentThreshold, old, false)
     // if (mask) mask = MagicWand.gaussBlurOnlyBorder(mask, blurRadius, old)
-    console.log(mask)
     if (addMode && oldMask) {
       mask = mask ? concatMasks(mask, oldMask) : oldMask
     }
@@ -614,6 +612,15 @@ function App() {
     }
   }
 
+  function blurMask() {
+    if (!mask) {
+      console.log('no mask')
+      return
+    }
+    mask = MagicWand.gaussBlurOnlyBorder(mask, blurRadius)
+    drawBorder()
+  }
+
   return (
     <div style={{ backgroundColor: 'yellow' }}>
       <div style={{ overflow: 'auto' }}>
@@ -642,6 +649,9 @@ function App() {
         </div>
         <div className="button" onClick={() => expandContour()}>
           expand Contour
+        </div>
+        <div className="button" onClick={() => blurMask()}>
+          blur selection edge
         </div>
         <input
           id="file-upload"
