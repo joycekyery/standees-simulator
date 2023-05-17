@@ -2,6 +2,7 @@ import './App.css'
 import React, { useEffect } from 'react'
 import MagicWand from 'magic-wand-tool'
 import openCV from 'react-opencvjs'
+import createPerlinNoise from './util/perlinNoise'
 function App() {
   useEffect(() => {
     openCV({
@@ -46,20 +47,27 @@ function App() {
     document.getElementById('file-upload').click()
   }
   function initCanvas(img) {
+    const expand = 100
     var cvs = document.getElementById('resultCanvas')
-    cvs.width = img.width
-    cvs.height = img.height
+    cvs.width = img.width + expand
+    cvs.height = img.height + expand
     var tempCanvas = document.getElementById('tempCanvas')
-    tempCanvas.width = img.width
-    tempCanvas.height = img.height
+    tempCanvas.width = img.width + expand
+    tempCanvas.height = img.height + expand
     imageInfo = {
-      width: img.width,
-      height: img.height,
+      width: img.width + expand,
+      height: img.height + expand,
       context: cvs.getContext('2d', { willReadFrequently: true }),
       tempContext: tempCanvas.getContext('2d', { willReadFrequently: true }),
     }
     mask = null
-    cvs.getContext('2d', { willReadFrequently: true }).drawImage(img, 0, 0)
+    cvs
+      .getContext('2d', { willReadFrequently: true })
+      .drawImage(
+        img,
+        cvs.width / 2 - img.width / 2,
+        cvs.height / 2 - img.height / 2
+      )
     imageInfo.data = cvs
       .getContext('2d', { willReadFrequently: true })
       .getImageData(0, 0, imageInfo.width, imageInfo.height)
@@ -237,28 +245,28 @@ function App() {
   function trace() {
     var cs = MagicWand.traceContours(mask)
     cs = MagicWand.simplifyContours(cs, simplifyTolerant, simplifyCount)
-
-    mask = null
-
     // draw contours
     var ctx = imageInfo.tempContext
     ctx.clearRect(0, 0, imageInfo.width, imageInfo.height)
+    var ps, i, j
     //inner
-    ctx.beginPath()
-    for (var i = 0; i < cs.length; i++) {
-      if (!cs[i].inner) continue
-      var ps = cs[i].points
-      ctx.moveTo(ps[0].x, ps[0].y)
-      for (var j = 1; j < ps.length; j++) {
-        ctx.lineTo(ps[j].x, ps[j].y)
-      }
-    }
-    ctx.strokeStyle = 'red'
-    ctx.shadowColor = 'black'
-    ctx.shadowBlur = 6
-    ctx.shadowOffsetX = 2
-    ctx.shadowOffsetY = 2
-    ctx.stroke()
+    // ctx.beginPath()
+    // for ( i = 0; i < cs.length; i++) {
+    //   if (!cs[i].inner) continue
+    //    ps = cs[i].points
+    //   ctx.moveTo(ps[0].x, ps[0].y)
+    //   for ( j = 1; j < ps.length; j++) {
+    //     ctx.lineTo(ps[j].x, ps[j].y)
+    //   }
+    // }
+    // ctx.strokeStyle = 'red'
+    // var grad = ctx.createLinearGradient(50, 50, 150, 150)
+    // grad.addColorStop(0, 'white')
+    // grad.addColorStop(1, 'black')
+    // ctx.shadowColor = 'black'
+    // ctx.shadowBlur = 6
+    // ctx.shadowOffsetX = 2
+    // ctx.shadowOffsetY = 2
     //outer
     ctx.beginPath()
     for (i = 0; i < cs.length; i++) {
@@ -269,7 +277,7 @@ function App() {
         ctx.lineTo(ps[j].x, ps[j].y)
       }
     }
-    ctx.strokeStyle = 'blue'
+    // ctx.strokeStyle = grad
     mask = null
     ctx.stroke()
   }
@@ -525,6 +533,87 @@ function App() {
     }
   }
 
+  function drawArcylicEdge() {
+    if (!mask) {
+      console.log('no mask')
+      return
+    }
+
+    var rgba = hexToRgb((255, 255, 255), 1)
+
+    var x,
+      y,
+      data = mask.data,
+      bounds = mask.bounds,
+      maskW = mask.width,
+      w = imageInfo.width,
+      h = imageInfo.height,
+      ctx = imageInfo.context,
+      imgData = ctx.createImageData(w, h),
+      tempContext = imageInfo.tempContext,
+      res = imgData.data
+
+    for (y = bounds.minY; y <= bounds.maxY; y++) {
+      for (x = bounds.minX; x <= bounds.maxX; x++) {
+        if (data[y * maskW + x] === 0) continue
+        var k = (y * w + x) * 4
+        res[k] = rgba[0]
+        res[k + 1] = rgba[1]
+        res[k + 2] = rgba[2]
+        res[k + 3] = rgba[3]
+      }
+    }
+
+    mask = null
+
+    // ctx.putImageData(imgData, 0, 0)
+    var canvas = document.createElement('canvas')
+    var context = canvas.getContext('2d', { willReadFrequently: true })
+    canvas.width = imageInfo.width
+    canvas.height = imageInfo.height
+    context.putImageData(imgData, 0, 0)
+    var image = new Image()
+    image.src = canvas.toDataURL('image/png')
+    context.clearRect(0, 0, w, h)
+    image.onload = function () {
+      tempContext.drawImage(image, 0, 0)
+      //inner edge
+      tempContext.globalCompositeOperation = 'destination-out'
+      tempContext.drawImage(image, 1, 4)
+      // reset back to normal for subsequent operations.
+      tempContext.globalCompositeOperation = 'source-over'
+      //outer edge
+      var tempCanvas = document.createElement('canvas')
+      var tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })
+      tempCanvas.width = canvas.width
+      tempCanvas.height = canvas.height
+      tempCtx.drawImage(image, 0, 0)
+      //inner edge
+      tempCtx.globalCompositeOperation = 'destination-out'
+      tempCtx.drawImage(image, -1, -4)
+      // reset back to normal for subsequent operations.
+      tempCtx.globalCompositeOperation = 'source-over'
+
+      tempContext.drawImage(tempCanvas, 0, 0)
+      tempCtx.clearRect(0, 0, canvas.width, canvas.height)
+      //create perlin noise
+      var noiseCanvas = createPerlinNoise(canvas.width, canvas.height, 60)
+
+      //apply white backgound
+      tempCtx.beginPath()
+      tempCtx.rect(0, 0, canvas.width, canvas.height)
+      tempCtx.fillStyle = 'white'
+      tempCtx.fill()
+      tempCtx.drawImage(tempCanvas, 0, 0)
+
+      tempCtx.drawImage(noiseCanvas, 0, 0)
+      tempContext.globalCompositeOperation = 'source-in'
+      tempContext.drawImage(tempCanvas, 0, 0)
+
+      tempContext.globalCompositeOperation = 'source-over'
+    }
+  }
+
   return (
     <div style={{ backgroundColor: 'yellow' }}>
       <div style={{ overflow: 'auto' }}>
@@ -532,7 +621,10 @@ function App() {
           Upload image and click on it
         </div>
         <div className="button" onClick={() => trace()}>
-          Create polygons by current selection
+          Create outline by current selection
+        </div>
+        <div className="button" onClick={() => drawArcylicEdge()}>
+          Create Arclylic effect by current selection
         </div>
         <div
           className="button"
