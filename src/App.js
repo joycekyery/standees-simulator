@@ -620,6 +620,15 @@ function App() {
     mask = MagicWand.gaussBlurOnlyBorder(mask, blurRadius)
     drawBorder()
   }
+  function downloadCanvas() {
+    var ctx = document.getElementById('resultCanvas')
+    var tmpctx = document.getElementById('tempCanvas')
+    ctx.getContext('2d').drawImage(tmpctx, 0, 0)
+    var anchor = document.createElement('a')
+    anchor.href = ctx.toDataURL('image/png') // 'image/jpg'
+    anchor.download = 'image.png' // 'image.jpg'
+    anchor.click()
+  }
 
   return (
     <div style={{ backgroundColor: 'yellow' }}>
@@ -652,6 +661,9 @@ function App() {
         </div>
         <div className="button" onClick={() => blurMask()}>
           blur selection edge
+        </div>
+        <div className="button" onClick={() => downloadCanvas()}>
+          download
         </div>
         <input
           id="file-upload"
